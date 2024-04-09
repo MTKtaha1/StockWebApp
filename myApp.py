@@ -5,28 +5,60 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 import plotly.express as px
+import numpy as np
 
 # Setup Finnhub client with your API key
 finnhub_client = finnhub.Client(api_key="co8vr39r01qj5gtjfu0gco8vr39r01qj5gtjfu10")
 st.sidebar.title("Stocks Web App")
-option = st.sidebar.selectbox("Select an Option", ["Home", "Stocks", "Expert"])
+option = st.sidebar.selectbox("Select an Option", ["Home", "Beginner", "Intermediate", "Expert"])
+
+
+def get_session_state():
+    if 'section' not in st.session_state:
+        st.session_state.section = "Home"
+    return st.session_state
+
 
 def display_expert_section():
+    get_session_state()
     st.markdown("### Welcome to the Expert Section!")
     # Add content specific to the expert section here
     st.write("This section contains resources and tools tailored for experts in trading stocks.")
 
     selected_stock = st.selectbox("Select a stock",
-                                  ["AAPL", "MSFT", "GOOGL", "AMZN", "FB", "TSLA", "NFLX", "NVDA", "INTC", "CSCO"])
+                                  ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX", "NVDA", "INTC", "CSCO"])
 
     ticker = selected_stock
-    startdate = st.date_input("Start Date")
-    enddate = st.date_input("End Date")
 
-    data = yf.download(ticker, start=startdate, end=enddate)
+    # Set default start date to 1 month before today
+    default_start_date = datetime.now() - timedelta(days=30)
+    start_date = st.date_input("Start Date", value=default_start_date)
+    end_date = st.date_input("End Date")
+
+    data = yf.download(ticker, start=start_date, end=end_date)
     fig = px.line(data, x=data.index, y=data['Adj Close'], title=ticker)
     st.plotly_chart(fig)
 
+    pricing, fundamental_data, news = st.tabs(["Pricing Data", "Fundamental Data", "Top 10 News"])
+
+    with pricing:
+        st.header('Pricing Movements')
+        my_data = data
+        my_data['% Change'] = my_data['Adj Close'] / data['Adj Close'].shift(1)
+        my_data.dropna(inplace = True)
+        st.write(my_data)
+        annual = my_data['% Change'].mean()*252*100
+        st.write('Annual Return is', annual,'%')
+        stdev = np.std(my_data['% Change'])*np.sqrt(252)
+        st.write('Standard Deviation is ',stdev*100,'%')
+        st.write('Risk Adj. Return is ', annual/(stdev*100))
+
+
+    # with data:
+    #     st.write('Fundamental')
+    #
+    # with news:
+    #     st.write('News')
 
 def display_intermediate_section():
     st.markdown("### Welcome to the Intermediate Section!")
@@ -34,7 +66,7 @@ def display_intermediate_section():
     st.write("This section contains resources and tools for users with intermediate experience in trading stocks.")
 
     # List of stock symbols for intermediate section
-    intermediate_stocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB', 'TSLA', 'NVDA', 'NFLX', 'DIS', 'V',
+    intermediate_stocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'NFLX', 'DIS', 'V',
                            'PYPL', 'INTC', 'ADBE', 'CMCSA', 'PEP', 'CSCO', 'AVGO', 'COST', 'TXN', 'QCOM']
 
     st.subheader("Stock Quotes for Intermediate Stocks:")
@@ -62,7 +94,6 @@ def display_intermediate_section():
     ax.set_title('Stock Prices for Intermediate Stocks')
     plt.xticks(rotation=45)
     st.pyplot(fig)
-
 
 
 def plot_stock_price(symbol, start_date, end_date, interval_seconds):
@@ -124,8 +155,9 @@ def display_beginner_section():
 # Main content area
 st.title("Stocks Web App")
 
+session_state = get_session_state()
+
 if option == "Home":
-    st.sidebar.subheader("Home")
 
     st.write("Please answer the following questions:")
 
@@ -148,20 +180,21 @@ if option == "Home":
 
     # Button to submit answers
     if st.button("Submit"):
-        st.success("Answers submitted successfully!")
 
         # Switch to appropriate section based on answers
         if q1 == "Yes" and q2 >= 8 and q3 == "Expert":
-            display_expert_section()
+            st.success("Based on your answers, you should refer to the expert section.")
         elif q1 == "Yes" or q2 >= 5:
-            display_intermediate_section()
+            st.success("Based on your answers, you should refer to the intermediate section.")
         else:
-            display_beginner_section()
+            st.success("Based on your answers, you should refer to the Beginner section.")
 
-elif option == "Stocks":
-    st.sidebar.subheader("Stocks")
 
-    # Here you can add logic to display stocks-related content
+elif option == "Beginner":
+    display_beginner_section()
+
+elif option == "Intermediate":
+    display_intermediate_section()
 
 elif option == "Expert":
     display_expert_section()
