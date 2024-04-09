@@ -1,16 +1,23 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import streamlit as st
-import finnhub
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 import plotly.express as px
 import numpy as np
+import finnhub
+from statsmodels.tsa.arima.model import ARIMA
+from plotly import graph_objs as go
+
+
+from streamlit_option_menu import option_menu
 
 # Setup Finnhub client with your API key
 finnhub_client = finnhub.Client(api_key="co8vr39r01qj5gtjfu0gco8vr39r01qj5gtjfu10")
 st.sidebar.title("Stocks Web App")
 option = st.sidebar.selectbox("Select an Option", ["Home", "Beginner", "Intermediate", "Expert"])
+
+option2 = st.sidebar.selectbox("Stocks Prediction", ["Stocks", "Map"])
 
 
 def get_session_state():
@@ -45,20 +52,20 @@ def display_expert_section():
         st.header('Pricing Movements')
         my_data = data
         my_data['% Change'] = my_data['Adj Close'] / data['Adj Close'].shift(1)
-        my_data.dropna(inplace = True)
+        my_data.dropna(inplace=True)
         st.write(my_data)
-        annual = my_data['% Change'].mean()*252*100
-        st.write('Annual Return is', annual,'%')
-        stdev = np.std(my_data['% Change'])*np.sqrt(252)
-        st.write('Standard Deviation is ',stdev*100,'%')
-        st.write('Risk Adj. Return is ', annual/(stdev*100))
-
+        annual = my_data['% Change'].mean() * 252 * 100
+        st.write('Annual Return is', annual, '%')
+        stdev = np.std(my_data['% Change']) * np.sqrt(252)
+        st.write('Standard Deviation is ', stdev * 100, '%')
+        st.write('Risk Adj. Return is ', annual / (stdev * 100))
 
     # with data:
     #     st.write('Fundamental')
     #
     # with news:
     #     st.write('News')
+
 
 def display_intermediate_section():
     st.markdown("### Welcome to the Intermediate Section!")
@@ -152,6 +159,7 @@ def display_beginner_section():
     # Display the dataframe as a table
     st.table(df)
 
+
 # Main content area
 st.title("Stocks Web App")
 
@@ -198,3 +206,81 @@ elif option == "Intermediate":
 
 elif option == "Expert":
     display_expert_section()
+
+
+
+if option2 == "Stocks":
+    START = "2015-01-01"
+    TODAY = date.today().strftime("%Y-%m-%d")
+
+    st.title('Stock Forecast App')
+
+    stocks = ('GOOG', 'AAPL', 'MSFT', 'GME')
+    selected_stock = st.selectbox('Select dataset for prediction', stocks)
+
+    n_years = st.slider('Years of prediction:', 1, 4)
+    period = n_years * 365
+
+
+    @st.cache_data
+    def load_data(ticker):
+        data = yf.download(ticker, START, TODAY)
+        data.reset_index(inplace=True)
+        return data
+
+
+    data_load_state = st.text('Loading data...')
+    data = load_data(selected_stock)
+    data_load_state.text('Loading data... done!')
+
+    st.subheader('Raw data')
+    st.write(data.tail())
+
+
+    # Plot raw data
+    def plot_raw_data():
+        fig, ax = plt.subplots()
+        ax.plot(data['Date'], data['Open'], label='stock_open')
+        ax.plot(data['Date'], data['Close'], label='stock_close')
+        ax.set_title('Time Series data with Rangeslider')
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Price')
+        ax.legend()
+        st.pyplot(fig)
+
+
+    plot_raw_data()
+
+    # Forecast with ARIMA
+    df_train = data[['Date', 'Close']]
+    df_train = df_train.rename(columns={"Date": "ds", "Close": "y"})
+
+    model = ARIMA(df_train['y'], order=(5, 1, 0))
+    fit_model = model.fit()
+
+    forecast = fit_model.forecast(steps=period)
+
+    future_dates = pd.date_range(start=df_train['ds'].iloc[-1], periods=period + 1)
+    forecast.index = future_dates[1:]
+
+    # Show and plot forecast
+    st.subheader('Forecast data')
+    st.write(forecast.tail())
+
+    st.write(f'Forecast plot for {n_years} years')
+
+    # Prepare data for 3D plot
+    forecast_df = forecast.reset_index()
+    forecast_df.columns = ['Date', 'Forecast']
+    forecast_df['Index'] = forecast_df.index
+
+    # Create 3D scatter plot
+    fig4 = px.scatter_3d(forecast_df,
+                         x="Index",
+                         y="Forecast",
+                         z="Date")
+    fig4.update_scenes(zaxis_autorange="reversed")
+    st.plotly_chart(fig4)
+
+if option2 == "Map":
+    st.text_input("Enter your")
